@@ -1,0 +1,48 @@
+import socket
+import threading
+from datetime import datetime
+from collections import defaultdict
+
+HOST = "0.0.0.0"
+PORT = 2222
+LOG_FILE = "honeypot.log"
+
+attempt_counter = defaultdict(int)
+BRUTE_FORCE_THRESHOLD = 5
+
+def log(message):
+    with open(LOG_FILE, "a") as f:
+        f.write(f"{datetime.now()} - {message}\n")
+
+def handle_client(client_socket, addr):
+    ip = addr[0]
+    attempt_counter[ip] += 1
+
+    print(f"[+] Connection from {ip}")
+    log(f"Connection from {ip}")
+
+    if attempt_counter[ip] >= BRUTE_FORCE_THRESHOLD:
+        alert = f"⚠ BRUTE FORCE ALERT: {ip} has {attempt_counter[ip]} attempts"
+        print(alert)
+        log(alert)
+
+    try:
+        client_socket.send(b"SSH-2.0-OpenSSH_8.2\r\n")
+        data = client_socket.recv(1024)
+        if data:
+            log(f"Data from {ip}: {data.decode(errors='ignore')}")
+    except:
+        pass
+
+    client_socket.close()
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((HOST, PORT))
+server.listen(5)
+
+print(f"[+] Honeypot listening on port {PORT}")
+
+while True:
+    client, addr = server.accept()
+    thread = threading.Thread(target=handle_client, args=(client, addr))
+    thread.start()
